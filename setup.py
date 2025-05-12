@@ -3,9 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="catdir",
     use_scm_version=True,
-    setup_requires=[
-        "setuptools-scm"
-    ],
+    setup_requires=["setuptools-scm"],
     description="Concatenate and print the contents of all files in a directory and its subdirectories.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",

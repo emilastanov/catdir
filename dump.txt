@@ -1,0 +1,632 @@
+# .github/workflows/publish.yml start file content
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]  # Триггер при публикации релиза (через UI или API)
+
+jobs:
+  build-and-publish:
+    name: Build and publish package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Обязательно! Чтобы теги были доступны
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install build and test tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine pytest setuptools_scm[toml] click
+
+      - name: Run tests
+        run: |
+          pytest
+
+      - name: Build package using setuptools_scm version
+        run: |
+          python -m build
+
+      - name: Check build validity
+        run: |
+          twine check dist/*
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          twine upload dist/*
+
+# end file content
+# .gitignore start file content
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+venv/
+env/
+.venv/
+.env/
+
+# VSCode
+.vscode/
+
+# PyCharm
+.idea/
+
+# Mac OS
+.DS_Store
+
+# Logs
+*.log
+
+# Python-specific
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# dotenv
+.env
+
+# Cache
+*.cache
+
+# end file content
+# setup.py start file content
+from setuptools import setup, find_packages
+
+setup(
+    name="catdir",
+    use_scm_version=True,
+    setup_requires=[
+        "setuptools-scm"
+    ],
+    description="Concatenate and print the contents of all files in a directory and its subdirectories.",
+    long_description=open("README.md", encoding="utf-8").read(),
+    long_description_content_type="text/markdown",
+    author="Emil Astanov",
+    author_email="emila1998@yandex.ru",
+    url="https://github.com/emilastanov/catdir",
+    license="MIT",
+    packages=find_packages(),
+    include_package_data=True,
+    python_requires=">=3.7",
+    install_requires=[
+        "click",
+    ],
+    entry_points={
+        "console_scripts": [
+            "catdir=catdir.main:catdir",
+        ],
+    },
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Environment :: Console",
+        "Operating System :: OS Independent",
+        "Topic :: Utilities",
+        "Topic :: Software Development :: Build Tools",
+    ],
+    keywords="catdir concatenate files directory cli click",
+)
+
+# end file content
+# catdir/main.py start file content
+from typing import Iterable
+import click
+import os
+
+from catdir.constants import NOISE
+from catdir.dump import dump
+
+
+def handler(path: str, exclude: Iterable[str], exclude_noise: bool) -> None:
+    absolute_path = os.path.abspath(path)
+
+    # Use a set for efficient lookups and to avoid duplicates
+    exclude_content = set(exclude)
+    if exclude_noise:
+        exclude_content.update(NOISE)
+
+    content = dump(absolute_path, exclude_content)
+    click.echo(content)
+
+
+@click.command(
+    context_settings=dict(help_option_names=["--help", "-h"]),
+    help="""
+CATDIR — Concatenate contents of all files in a directory, like `cat`, but for entire folders.
+
+Example:
+    catdir ./my_project --exclude .env --exclude-noise
+
+This will output the combined contents of all files, excluding `.env` and standard noise like `.git`, `node_modules`, etc.
+"""
+)
+@click.option(
+    "-e", "--exclude",
+    multiple=True,
+    help="""
+Manually exclude specific files or folders.
+
+You can use this option multiple times:
+    --exclude .env --exclude secrets.json
+"""
+)
+@click.option(
+    "-en", "--exclude-noise",
+    is_flag=True,
+    help="""
+Exclude common development noise:
+temporary, cache, build, and system files that are usually not needed in a dump.
+
+Includes: .git, .venv, __pycache__, node_modules, and more.
+"""
+)
+@click.argument("path")
+def catdir(path: str, exclude: Iterable[str], exclude_noise: bool) -> None:
+    """
+    Concatenate and print the contents of all files in the given folder.
+
+    Args:
+        path (str): Relative or absolute path to the directory.
+        exclude (Iterable[str]): Items to exclude by name (file or folder names).
+        exclude_noise (bool): Whether to include standard development artifacts in the exclusion list.
+    """
+    handler(path, exclude, exclude_noise)
+
+# end file content
+# catdir/dump.py start file content
+from typing import List, Optional, Union
+import os
+
+def dump(path: str, exclude: Optional[Union[List[str], set[str]]] = None) -> str:
+    """
+    Traverses all files in the given directory and its subdirectories,
+    and returns the concatenated content of all readable files,
+    excluding any names provided in the `exclude` list.
+
+    Args:
+        path (str): The root directory to start scanning.
+        exclude (Optional[List[str] or set[str]]): Filenames or folder names to exclude by name.
+
+    Returns:
+        str: Combined content of all readable files, annotated with file boundaries and relative paths.
+    """
+    # Normalize exclude list into a set for fast lookup
+    if exclude is None:
+        exclude = set()
+    else:
+        exclude = set(exclude)
+
+    result: List[str] = []
+    files: List[str] = [path]
+    base_path: str = os.path.abspath(path)
+
+    while files:
+        current_path = files.pop()
+
+        name = os.path.basename(current_path)
+
+        # Skip if the file/folder name is in the exclude list
+        if name in exclude:
+            continue
+
+        if os.path.isdir(current_path):
+            # Attempt to list directory contents
+            try:
+                for item in os.listdir(current_path):
+                    full_item_path = os.path.join(current_path, item)
+                    files.append(full_item_path)
+            except Exception as e:
+                rel_path = os.path.relpath(current_path, base_path)
+                result.append(
+                    f"# {rel_path} — error while listing directory: {e}\n\n"
+                )
+
+        elif os.path.isfile(current_path):
+            rel_path = os.path.relpath(current_path, base_path)
+            try:
+                # Read file content using UTF-8
+                with open(current_path, 'r', encoding='utf-8') as file:
+                    content = file.read()
+                result.append(
+                    f"# {rel_path} start file content\n{content}\n# end file content\n"
+                )
+            except Exception as e:
+                result.append(
+                    f"# {rel_path} — error while reading: {e}\n\n"
+                )
+
+    # Join all collected strings into a single result
+    return ''.join(result)
+
+# end file content
+# catdir/__init__.py start file content
+
+# end file content
+# catdir/constants.py start file content
+
+NOISE = [
+    ".venv", "venv", ".git", ".idea", "__pycache__",
+    "node_modules", "dist", "build", ".pytest_cache",
+    ".mypy_cache", ".cache", ".eggs",
+    ".coverage", "coverage.xml", ".tox", ".DS_Store",
+    "Thumbs.db", ".env"
+]
+
+# end file content
+# README.md start file content
+# catdir
+
+`catdir` is a simple CLI utility that traverses directories and concatenates the contents of all files within a folder and its subfolders, similar to the Unix `cat` command — but for entire directory trees.
+
+This tool is particularly useful for diagnostics, debugging, packaging, or reviewing all source files in a project at once.
+
+## Installation
+
+Install using `pip`:
+
+```bash
+pip install catdir
+```
+
+---
+
+## Usage
+
+```bash
+catdir [OPTIONS] PATH
+```
+
+### Example
+
+```bash
+catdir ./my_project --exclude .env --exclude-noise
+catdir ./my_project -e .env -en
+catdir ./my_project -e .env -en >> dump.txt
+```
+
+These commands output the contents of all readable files under ./my_project, excluding .env and commonly ignored development artifacts such as .git, node_modules, .venv, and others.
+The last example redirects the output to a file named dump.txt.
+
+---
+
+## Options
+
+| Option                  | Description                                                                 |
+|-------------------------|-----------------------------------------------------------------------------|
+| `-e`, `--exclude`       | Manually exclude specific files or folders by name (can be used multiple times). |
+| `-en`, `--exclude-noise`| Automatically exclude common development artifacts (e.g., `.git`, `.venv`, etc.). |
+| `-h`, `--help`          | Show usage instructions.                                                    |
+
+---
+
+## Output Format
+
+Each file is prefixed and suffixed with a marker to identify its contents:
+
+```text
+# relative/path/to/file.py start file content
+<file content here>
+# end file content
+```
+
+If a file or directory cannot be read, the tool will emit an inline error comment with the reason.
+
+---
+
+## What Is Excluded with `--exclude-noise`?
+
+The `--exclude-noise` flag excludes the following by default:
+
+```text
+.venv, venv, .git, .idea, __pycache__, node_modules, dist, build,
+.pytest_cache, .mypy_cache, .cache, .eggs, .coverage, coverage.xml,
+.tox, .DS_Store, Thumbs.db, .env
+```
+
+---
+
+## Development
+
+To install and run locally:
+
+```bash
+git clone https://github.com/yourname/catdir.git
+cd catdir
+pip install -e .
+catdir ./example_project --exclude-noise
+```
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+# end file content
+# MANIFEST.in start file content
+recursive-include catdir *.py
+include README.md
+include LICENSE
+
+# end file content
+# dump.txt start file content
+
+# end file content
+# tests/test_main.py start file content
+from catdir.main import handler as catdir
+
+
+def test_basic_run(tmp_path, capsys):
+    file = tmp_path / "example.txt"
+    file.write_text("hello")
+
+    catdir(str(tmp_path), exclude=[], exclude_noise=False)
+    out = capsys.readouterr().out
+    assert "hello" in out
+
+
+def test_exclude_file(tmp_path, capsys):
+    (tmp_path / "keep.txt").write_text("keep")
+    (tmp_path / "ignore.txt").write_text("ignore")
+
+    catdir(str(tmp_path), exclude=["ignore.txt"], exclude_noise=False)
+    out = capsys.readouterr().out
+    assert "keep" in out
+    assert "ignore" not in out
+
+
+def test_subdirectory(tmp_path, capsys):
+    subdir = tmp_path / "sub"
+    subdir.mkdir()
+    (subdir / "a.txt").write_text("subfile")
+
+    catdir(str(tmp_path), exclude=[], exclude_noise=False)
+    out = capsys.readouterr().out
+    assert "subfile" in out
+
+
+def test_read_error(tmp_path, capsys):
+    secret = tmp_path / "secret.txt"
+    secret.write_text("can't read")
+    secret.chmod(0)
+
+    try:
+        catdir(str(tmp_path), exclude=[], exclude_noise=False)
+    finally:
+        secret.chmod(0o644)
+
+    out = capsys.readouterr().out
+    assert "error while reading" in out
+
+# end file content
+# tests/__init__.py start file content
+
+# end file content
+# pyproject.toml start file content
+[build-system]
+requires = [
+    "setuptools>=42",
+    "wheel",
+    "setuptools_scm[toml]>=6.0"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
+
+# end file content
+# catdir.egg-info/dependency_links.txt start file content
+
+
+# end file content
+# catdir.egg-info/top_level.txt start file content
+catdir
+tests
+
+# end file content
+# catdir.egg-info/requires.txt start file content
+click
+
+# end file content
+# catdir.egg-info/entry_points.txt start file content
+[console_scripts]
+catdir = catdir.main:main
+
+# end file content
+# catdir.egg-info/SOURCES.txt start file content
+.gitignore
+LICENSE
+MANIFEST.in
+README.md
+setup.py
+.github/workflows/publish.yml
+catdir/__init__.py
+catdir/constants.py
+catdir/dump.py
+catdir/main.py
+catdir.egg-info/PKG-INFO
+catdir.egg-info/SOURCES.txt
+catdir.egg-info/dependency_links.txt
+catdir.egg-info/entry_points.txt
+catdir.egg-info/requires.txt
+catdir.egg-info/top_level.txt
+tests/__init__.py
+tests/test_main.py
+# end file content
+# catdir.egg-info/PKG-INFO start file content
+Metadata-Version: 2.4
+Name: catdir
+Version: 0.1.dev2+g45c92da.d20250424
+Summary: Concatenate and print the contents of all files in a directory and its subdirectories.
+Home-page: https://github.com/emilastanov/catdir
+Author: Emil Astanov
+Author-email: emila1998@yandex.ru
+License: MIT
+Keywords: catdir concatenate files directory cli click
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Environment :: Console
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Utilities
+Classifier: Topic :: Software Development :: Build Tools
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# catdir
+
+`catdir` is a simple CLI utility that traverses directories and concatenates the contents of all files within a folder and its subfolders, similar to the Unix `cat` command — but for entire directory trees.
+
+This tool is particularly useful for diagnostics, debugging, packaging, or reviewing all source files in a project at once.
+
+## Installation
+
+Install using `pip`:
+
+```bash
+pip install catdir
+```
+
+---
+
+## Usage
+
+```bash
+catdir [OPTIONS] PATH
+```
+
+### Example
+
+```bash
+catdir ./my_project --exclude .env --exclude-noise
+catdir ./my_project -e .env -en
+catdir ./my_project -e .env -en >> dump.txt
+```
+
+These commands output the contents of all readable files under ./my_project, excluding .env and commonly ignored development artifacts such as .git, node_modules, .venv, and others.
+The last example redirects the output to a file named dump.txt.
+
+---
+
+## Options
+
+| Option                  | Description                                                                 |
+|-------------------------|-----------------------------------------------------------------------------|
+| `-e`, `--exclude`       | Manually exclude specific files or folders by name (can be used multiple times). |
+| `-en`, `--exclude-noise`| Automatically exclude common development artifacts (e.g., `.git`, `.venv`, etc.). |
+| `-h`, `--help`          | Show usage instructions.                                                    |
+
+---
+
+## Output Format
+
+Each file is prefixed and suffixed with a marker to identify its contents:
+
+```text
+# relative/path/to/file.py start file content
+<file content here>
+# end file content
+```
+
+If a file or directory cannot be read, the tool will emit an inline error comment with the reason.
+
+---
+
+## What Is Excluded with `--exclude-noise`?
+
+The `--exclude-noise` flag excludes the following by default:
+
+```text
+.venv, venv, .git, .idea, __pycache__, node_modules, dist, build,
+.pytest_cache, .mypy_cache, .cache, .eggs, .coverage, coverage.xml,
+.tox, .DS_Store, Thumbs.db, .env
+```
+
+---
+
+## Development
+
+To install and run locally:
+
+```bash
+git clone https://github.com/yourname/catdir.git
+cd catdir
+pip install -e .
+catdir ./example_project --exclude-noise
+```
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+# end file content
+# LICENSE start file content
+MIT License
+
+Copyright (c) 2025 Emil Astanov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+# end file content
+

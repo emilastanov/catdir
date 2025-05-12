@@ -27,27 +27,29 @@ Example:
     catdir ./my_project --exclude .env --exclude-noise
 
 This will output the combined contents of all files, excluding `.env` and standard noise like `.git`, `node_modules`, etc.
-"""
+""",
 )
 @click.option(
-    "-e", "--exclude",
+    "-e",
+    "--exclude",
     multiple=True,
     help="""
 Manually exclude specific files or folders.
 
 You can use this option multiple times:
     --exclude .env --exclude secrets.json
-"""
+""",
 )
 @click.option(
-    "-en", "--exclude-noise",
+    "-en",
+    "--exclude-noise",
     is_flag=True,
     help="""
 Exclude common development noise:
 temporary, cache, build, and system files that are usually not needed in a dump.
 
 Includes: .git, .venv, __pycache__, node_modules, and more.
-"""
+""",
 )
 @click.argument("path")
 def catdir(path: str, exclude: Iterable[str], exclude_noise: bool) -> None:

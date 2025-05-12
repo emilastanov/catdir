@@ -1,5 +1,10 @@
 # catdir
 
+![PyPI version](https://img.shields.io/pypi/v/catdir)
+![Python versions](https://img.shields.io/pypi/pyversions/catdir)
+![License](https://img.shields.io/github/license/emilastanov/catdir)
+![CI/CD](https://github.com/emilastanov/catdir/actions/workflows/publish.yml/badge.svg)
+
 `catdir` is a simple CLI utility that traverses directories and concatenates the contents of all files within a folder and its subfolders, similar to the Unix `cat` command — but for entire directory trees.
 
 This tool is particularly useful for diagnostics, debugging, packaging, or reviewing all source files in a project at once.
@@ -79,6 +84,9 @@ cd catdir
 pip install -e .
 catdir ./example_project --exclude-noise
 ```
+
+#### See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+We welcome PRs and ideas — see [issues](https://github.com/emilastanov/catdir/issues), or open a new one.
 
 ---
 
