@@ -6,7 +6,13 @@ from catdir.constants import NOISE
 from catdir.dump import dump
 
 
-def handler(path: str, exclude: Iterable[str], exclude_noise: bool, output: str = None, append: bool = False) -> None:
+def handler(
+    path: str,
+    exclude: Iterable[str],
+    exclude_noise: bool,
+    output: str = None,
+    append: bool = False,
+) -> None:
     absolute_path = os.path.abspath(path)
 
     # Use a set for efficient lookups and to avoid duplicates
@@ -74,7 +80,9 @@ Optionally append the result to the file instead of overwriting it.
 """,
 )
 @click.argument("path")
-def catdir(path: str, exclude: Iterable[str], exclude_noise: bool, output: str, append: bool) -> None:
+def catdir(
+    path: str, exclude: Iterable[str], exclude_noise: bool, output: str, append: bool
+) -> None:
     """
     Concatenate and print the contents of all files in the given folder.
 
