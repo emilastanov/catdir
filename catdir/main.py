@@ -6,7 +6,7 @@ from catdir.constants import NOISE
 from catdir.dump import dump
 
 
-def handler(path: str, exclude: Iterable[str], exclude_noise: bool) -> None:
+def handler(path: str, exclude: Iterable[str], exclude_noise: bool, output: str=None) -> None:
     absolute_path = os.path.abspath(path)
 
     # Use a set for efficient lookups and to avoid duplicates
@@ -15,7 +15,12 @@ def handler(path: str, exclude: Iterable[str], exclude_noise: bool) -> None:
         exclude_content.update(NOISE)
 
     content = dump(absolute_path, exclude_content)
-    click.echo(content)
+
+    if output:
+        with open(output, "w", encoding="utf-8") as f:
+            click.echo(content, file=f)
+    else:
+        click.echo(content)
 
 
 @click.command(
@@ -51,8 +56,16 @@ temporary, cache, build, and system files that are usually not needed in a dump.
 Includes: .git, .venv, __pycache__, node_modules, and more.
 """,
 )
+@click.option(
+    "-o",
+    "--output",
+    multiple=False,
+    help="""
+Output the result to a file instead of printing it to the console.
+""",
+)
 @click.argument("path")
-def catdir(path: str, exclude: Iterable[str], exclude_noise: bool) -> None:
+def catdir(path: str, exclude: Iterable[str], exclude_noise: bool, output: str) -> None:
     """
     Concatenate and print the contents of all files in the given folder.
 
@@ -61,4 +74,4 @@ def catdir(path: str, exclude: Iterable[str], exclude_noise: bool) -> None:
         exclude (Iterable[str]): Items to exclude by name (file or folder names).
         exclude_noise (bool): Whether to include standard development artifacts in the exclusion list.
     """
-    handler(path, exclude, exclude_noise)
+    handler(path, exclude, exclude_noise, output)
