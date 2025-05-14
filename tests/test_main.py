@@ -42,3 +42,22 @@ def test_read_error(tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert "error while reading" in out
+
+def test_output_file(tmp_path, capsys):
+    file = tmp_path / "example.txt"
+    file.write_text("hello")
+
+    catdir(str(tmp_path), exclude=[], exclude_noise=False, output=(tmp_path / "output.txt"))
+    out = (tmp_path / "output.txt").read_text()
+    assert "hello" in out
+
+
+def test_append_output_file(tmp_path, capsys):
+    file = tmp_path / "example.txt"
+    file.write_text("hello")
+    file = tmp_path / "example2.txt"
+    file.write_text("world")
+
+    catdir(str(tmp_path), exclude=[], exclude_noise=False, output=(tmp_path / "example2.txt"), append=True)
+    out = (tmp_path / "example2.txt").read_text()
+    assert "hello" in out and "world" in out
