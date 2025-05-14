@@ -90,5 +90,7 @@ def catdir(
         path (str): Relative or absolute path to the directory.
         exclude (Iterable[str]): Items to exclude by name (file or folder names).
         exclude_noise (bool): Whether to include standard development artifacts in the exclusion list.
+        output (str): Path to the output file. If not provided, prints to stdout.
+        append (bool): If True, appends to the output file instead of overwriting it.
     """
     handler(path, exclude, exclude_noise, output, append)
