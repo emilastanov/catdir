@@ -30,21 +30,26 @@ catdir [OPTIONS] PATH
 ```bash
 catdir ./my_project --exclude .env --exclude-noise
 catdir ./my_project -e .env -en
-catdir ./my_project -e .env -en >> dump.txt
+catdir ./my_project -e .env -en --output dump.txt
+catdir ./my_project -e .env -en --output dump.txt --append
 ```
 
-These commands output the contents of all readable files under ./my_project, excluding .env and commonly ignored development artifacts such as .git, node_modules, .venv, and others.
-The last example redirects the output to a file named dump.txt.
+These commands output the contents of all readable files under `./my_project`, excluding `.env` and commonly ignored development artifacts such as `.git`, `node_modules`, `.venv`, and others.
+
+The third example writes the output to a file named `dump.txt`, overwriting it if it exists.  
+The fourth example appends the output to `dump.txt` instead of overwriting.
 
 ---
 
 ## Options
 
-| Option                  | Description                                                                 |
-|-------------------------|-----------------------------------------------------------------------------|
-| `-e`, `--exclude`       | Manually exclude specific files or folders by name (can be used multiple times). |
-| `-en`, `--exclude-noise`| Automatically exclude common development artifacts (e.g., `.git`, `.venv`, etc.). |
-| `-h`, `--help`          | Show usage instructions.                                                    |
+| Option                    | Description                                                                 |
+|---------------------------|-----------------------------------------------------------------------------|
+| `-e`, `--exclude`         | Manually exclude specific files or folders by name (can be used multiple times). |
+| `-en`, `--exclude-noise`  | Automatically exclude common development artifacts (e.g., `.git`, `.venv`, etc.). |
+| `-o`, `--output`          | Path to a file where output should be written. Defaults to stdout.          |
+| `-a`, `--append`          | If set, appends to the output file instead of overwriting. Works only with `--output`. |
+| `-h`, `--help`            | Show usage instructions.                                                    |
 
 ---
 
